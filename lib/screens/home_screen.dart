@@ -754,6 +754,43 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       ),
                     ),
                     if (_searchExpanded && _searchController.text.isNotEmpty) ...[
+                      // Search submit button for D-Pad users
+                      Focus(
+                        child: Builder(
+                          builder: (context) {
+                            final isFocused = Focus.of(context).hasFocus;
+                            return GestureDetector(
+                              onTap: () {
+                                if (_searchController.text.isNotEmpty) {
+                                  Provider.of<AnimeProvider>(context, listen: false)
+                                      .searchAnime(_searchController.text);
+                                  _searchOverlayEntry?.markNeedsBuild();
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                margin: const EdgeInsets.only(right: 6),
+                                decoration: BoxDecoration(
+                                  color: isFocused ? AppColors.neonYellow : AppColors.glass,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: isFocused ? AppColors.neonYellow : AppColors.glassBorder,
+                                    width: isFocused ? 2 : 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  'GO',
+                                  style: TextStyle(
+                                    color: isFocused ? AppColors.background : AppColors.textPrimary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                       GestureDetector(
                         onTap: _closeSearch,
                         child: Container(
@@ -1412,108 +1449,144 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Widget _buildAnimeCard(Anime anime) {
     final tvScale = TvScale.factor(context);
     
-    return GestureDetector(
-      onTap: () => _navigateToDetails(anime),
-      child: Container(
-        width: 165 * tvScale,
-        margin: EdgeInsets.symmetric(horizontal: 6 * tvScale),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12 * tvScale),
-                  border: Border.all(color: AppColors.cardBorder, width: 1.5 * tvScale),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      blurRadius: 10 * tvScale,
-                      spreadRadius: -2 * tvScale,
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(11),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      CachedNetworkImage(
-                        imageUrl: anime.coverImage ?? '',
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(
-                          color: AppColors.surface,
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              color: AppColors.neonYellow,
-                              strokeWidth: 2,
-                            ),
-                          ),
+    return Focus(
+      child: Builder(
+        builder: (context) {
+          final isFocused = Focus.of(context).hasFocus;
+          
+          return GestureDetector(
+            onTap: () => _navigateToDetails(anime),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 165 * tvScale,
+              margin: EdgeInsets.symmetric(horizontal: 6 * tvScale),
+              transform: isFocused ? (Matrix4.identity()..scale(1.05)) : Matrix4.identity(),
+              transformAlignment: Alignment.center,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12 * tvScale),
+                        border: Border.all(
+                          color: isFocused ? AppColors.neonYellow : AppColors.cardBorder,
+                          width: isFocused ? 3 * tvScale : 1.5 * tvScale,
                         ),
-                        errorWidget: (context, url, error) => Container(
-                          color: AppColors.surface,
-                          child: Icon(Icons.movie, color: AppColors.textMuted, size: 40),
-                        ),
-                      ),
-                      // Rating badge - top left
-                      if (anime.averageScore != null)
-                        Positioned(
-                          top: 8,
-                          left: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.background.withValues(alpha: 0.85),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.star, color: AppColors.neonYellow, size: 12),
-                                const SizedBox(width: 3),
-                                Text(
-                                  (anime.averageScore! / 10).toStringAsFixed(1),
-                                  style: TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.bold),
+                        boxShadow: isFocused
+                            ? [
+                                BoxShadow(
+                                  color: AppColors.neonYellow.withValues(alpha: 0.4),
+                                  blurRadius: 20 * tvScale,
+                                  spreadRadius: 2 * tvScale,
+                                ),
+                              ]
+                            : [
+                                BoxShadow(
+                                  color: Colors.white.withValues(alpha: 0.05),
+                                  blurRadius: 10 * tvScale,
+                                  spreadRadius: -2 * tvScale,
                                 ),
                               ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(11),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            CachedNetworkImage(
+                              imageUrl: anime.coverImage ?? '',
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(
+                                color: AppColors.surface,
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    color: AppColors.neonYellow,
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) => Container(
+                                color: AppColors.surface,
+                                child: Icon(Icons.movie, color: AppColors.textMuted, size: 40),
+                              ),
                             ),
-                          ),
+                            // Focus overlay
+                            if (isFocused)
+                              Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.transparent,
+                                      AppColors.neonYellow.withValues(alpha: 0.2),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            // Rating badge - top left
+                            if (anime.averageScore != null)
+                              Positioned(
+                                top: 8,
+                                left: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.background.withValues(alpha: 0.85),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.star, color: AppColors.neonYellow, size: 12),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        (anime.averageScore! / 10).toStringAsFixed(1),
+                                        style: TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            // Episode badge - top right
+                            if (anime.subEpisodes != null || anime.dubEpisodes != null)
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.background.withValues(alpha: 0.85),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    'EP ${anime.subEpisodes ?? anime.dubEpisodes}',
+                                    style: TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                      // Episode badge - top right
-                      if (anime.subEpisodes != null || anime.dubEpisodes != null)
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.background.withValues(alpha: 0.85),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              'EP ${anime.subEpisodes ?? anime.dubEpisodes}',
-                              style: TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ),
-                    ],
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 10),
+                  Text(
+                    anime.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isFocused ? AppColors.neonYellow : AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: isFocused ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              anime.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
