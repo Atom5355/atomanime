@@ -755,10 +755,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           if (_searchExpanded) {
                             _searchOverlayEntry?.markNeedsBuild();
                           }
-                          // Auto-search with debounce for Fire TV (no Enter key)
+                          // Auto-search on every character for Fire TV (no Enter key)
                           _searchDebounce?.cancel();
-                          if (value.length >= 3) {
-                            _searchDebounce = Timer(const Duration(milliseconds: 800), () {
+                          if (value.isNotEmpty) {
+                            _searchDebounce = Timer(const Duration(milliseconds: 500), () {
                               if (value.isNotEmpty && mounted) {
                                 setState(() => _selectedIndex = 0);
                                 Provider.of<AnimeProvider>(context, listen: false).searchAnime(value);

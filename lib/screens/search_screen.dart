@@ -107,10 +107,10 @@ class _SearchScreenState extends State<SearchScreen> {
                 textInputAction: TextInputAction.search,
                 onSubmitted: (_) => _performSearch(),
                 onChanged: (value) {
-                  // Auto-search with debounce for Fire TV (no Enter key)
+                  // Auto-search on every character for Fire TV (no Enter key)
                   _searchDebounce?.cancel();
-                  if (value.length >= 3) {
-                    _searchDebounce = Timer(const Duration(milliseconds: 800), () {
+                  if (value.isNotEmpty) {
+                    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
                       if (value.isNotEmpty && mounted) {
                         _performSearch();
                       }
