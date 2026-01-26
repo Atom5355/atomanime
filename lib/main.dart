@@ -10,7 +10,6 @@ import 'services/profile_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/profile_selection_screen.dart';
 import 'theme/app_theme.dart';
-import 'widgets/tv_cursor_overlay.dart';
 
 // Global navigator key for mouse button navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -141,24 +140,16 @@ class MainApp extends StatelessWidget {
                 final isTvMode = tvDetector.isLikelyTv || 
                     (Platform.isAndroid && MediaQuery.of(context).size.shortestSide > 600);
                 
-                Widget result = child!;
-                
                 if (isTvMode) {
                   // Scale text by 1.5x for TV viewing distance
-                  result = MediaQuery(
+                  return MediaQuery(
                     data: MediaQuery.of(context).copyWith(
                       textScaler: const TextScaler.linear(1.5),
                     ),
-                    child: result,
+                    child: child!,
                   );
                 }
-                
-                // Wrap with TV cursor overlay for D-Pad navigation on Android
-                if (Platform.isAndroid) {
-                  result = TvCursorOverlay(child: result);
-                }
-                
-                return result;
+                return child!;
               },
               // Start with profile selection, then navigate to home
               initialRoute: '/',

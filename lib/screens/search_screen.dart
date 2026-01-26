@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +20,7 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  Timer? _searchDebounce;
 
   void _performSearch() {
     if (_searchController.text.isNotEmpty) {
@@ -29,6 +31,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -53,6 +56,17 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ),
         leading: Focus(
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent) {
+              if (event.logicalKey == LogicalKeyboardKey.select ||
+                  event.logicalKey == LogicalKeyboardKey.enter ||
+                  event.logicalKey == LogicalKeyboardKey.space) {
+                Navigator.pop(context);
+                return KeyEventResult.handled;
+              }
+            }
+            return KeyEventResult.ignored;
+          },
           child: Builder(
             builder: (context) {
               final isFocused = Focus.of(context).hasFocus;
@@ -92,10 +106,32 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
                 textInputAction: TextInputAction.search,
                 onSubmitted: (_) => _performSearch(),
+                onChanged: (value) {
+                  // Auto-search with debounce for Fire TV (no Enter key)
+                  _searchDebounce?.cancel();
+                  if (value.length >= 3) {
+                    _searchDebounce = Timer(const Duration(milliseconds: 800), () {
+                      if (value.isNotEmpty && mounted) {
+                        _performSearch();
+                      }
+                    });
+                  }
+                },
               ),
             ),
             // Search button for D-Pad users
             Focus(
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent) {
+                  if (event.logicalKey == LogicalKeyboardKey.select ||
+                      event.logicalKey == LogicalKeyboardKey.enter ||
+                      event.logicalKey == LogicalKeyboardKey.space) {
+                    _performSearch();
+                    return KeyEventResult.handled;
+                  }
+                }
+                return KeyEventResult.ignored;
+              },
               child: Builder(
                 builder: (context) {
                   final isFocused = Focus.of(context).hasFocus;
@@ -143,6 +179,19 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
         actions: [
           Focus(
+            onKeyEvent: (node, event) {
+              if (event is KeyDownEvent) {
+                if (event.logicalKey == LogicalKeyboardKey.select ||
+                    event.logicalKey == LogicalKeyboardKey.enter ||
+                    event.logicalKey == LogicalKeyboardKey.space) {
+                  _searchController.clear();
+                  Provider.of<AnimeProvider>(context, listen: false).clearSearch();
+                  _searchFocusNode.requestFocus();
+                  return KeyEventResult.handled;
+                }
+              }
+              return KeyEventResult.ignored;
+            },
             child: Builder(
               builder: (context) {
                 final isFocused = Focus.of(context).hasFocus;
@@ -231,20 +280,35 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _buildSearchResultCard(Anime anime) {
     final tvScale = TvScale.factor(context);
     
+    void navigateToDetails() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AnimeDetailsScreen(anime: anime),
+        ),
+      );
+    }
+    
     return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
+          // Handle Select/Enter/Space for Fire TV remote
+          if (event.logicalKey == LogicalKeyboardKey.select ||
+              event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.space ||
+              event.logicalKey == LogicalKeyboardKey.gameButtonA) {
+            navigateToDetails();
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
       child: Builder(
         builder: (context) {
           final isFocused = Focus.of(context).hasFocus;
           
           return GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AnimeDetailsScreen(anime: anime),
-                ),
-              );
-            },
+            onTap: navigateToDetails,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               transform: isFocused ? (Matrix4.identity()..scale(1.05)) : Matrix4.identity(),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -60,6 +61,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   List<ContinueWatchingItem> _continueWatching = [];
   Set<String> _cachedEpisodes = {}; // Track which continue watching items are cached
   bool _isLoadingContinueWatching = false;
+  
+  // Auto-search debounce timer
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -86,6 +90,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _removeSearchOverlay();
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
     _animationController.dispose();
@@ -750,12 +755,38 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           if (_searchExpanded) {
                             _searchOverlayEntry?.markNeedsBuild();
                           }
+                          // Auto-search with debounce for Fire TV (no Enter key)
+                          _searchDebounce?.cancel();
+                          if (value.length >= 3) {
+                            _searchDebounce = Timer(const Duration(milliseconds: 800), () {
+                              if (value.isNotEmpty && mounted) {
+                                setState(() => _selectedIndex = 0);
+                                Provider.of<AnimeProvider>(context, listen: false).searchAnime(value);
+                                _searchOverlayEntry?.markNeedsBuild();
+                              }
+                            });
+                          }
                         },
                       ),
                     ),
                     if (_searchExpanded && _searchController.text.isNotEmpty) ...[
                       // Search submit button for D-Pad users
                       Focus(
+                        onKeyEvent: (node, event) {
+                          if (event is KeyDownEvent) {
+                            if (event.logicalKey == LogicalKeyboardKey.select ||
+                                event.logicalKey == LogicalKeyboardKey.enter ||
+                                event.logicalKey == LogicalKeyboardKey.space) {
+                              if (_searchController.text.isNotEmpty) {
+                                Provider.of<AnimeProvider>(context, listen: false)
+                                    .searchAnime(_searchController.text);
+                                _searchOverlayEntry?.markNeedsBuild();
+                              }
+                              return KeyEventResult.handled;
+                            }
+                          }
+                          return KeyEventResult.ignored;
+                        },
                         child: Builder(
                           builder: (context) {
                             final isFocused = Focus.of(context).hasFocus;
@@ -1143,80 +1174,122 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final badgeColor = isNextEpisode ? AppColors.success : (history.category == 'dub' ? AppColors.dub : AppColors.sub);
     final badgeText = isNextEpisode ? 'NEXT EP ${item.displayEpisodeNumber}' : 'EP ${item.displayEpisodeNumber}';
     
-    return GestureDetector(
-      onTap: () => _resumeWatching(item),
-      child: Container(
-        width: 165 * tvScale,
-        margin: EdgeInsets.symmetric(horizontal: 6 * tvScale),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12 * tvScale),
-                  border: Border.all(
-                    color: isNextEpisode ? AppColors.success.withValues(alpha: 0.6) : AppColors.cardBorder, 
-                    width: (isNextEpisode ? 2 : 1.5) * tvScale,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: isNextEpisode 
-                          ? AppColors.success.withValues(alpha: 0.15)
-                          : Colors.white.withValues(alpha: 0.05),
-                      blurRadius: (isNextEpisode ? 15 : 10) * tvScale,
-                      spreadRadius: (isNextEpisode ? 0 : -2) * tvScale,
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(11),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      CachedNetworkImage(
-                        imageUrl: history.coverImage ?? '',
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(
-                          color: AppColors.surface,
-                          child: Center(child: CircularProgressIndicator(color: AppColors.neonYellow, strokeWidth: 2)),
+    return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.select ||
+              event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.space ||
+              event.logicalKey == LogicalKeyboardKey.gameButtonA) {
+            _resumeWatching(item);
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Builder(
+        builder: (context) {
+          final isFocused = Focus.of(context).hasFocus;
+          
+          return GestureDetector(
+            onTap: () => _resumeWatching(item),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 165 * tvScale,
+              margin: EdgeInsets.symmetric(horizontal: 6 * tvScale),
+              transform: isFocused ? (Matrix4.identity()..scale(1.05)) : Matrix4.identity(),
+              transformAlignment: Alignment.center,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12 * tvScale),
+                        border: Border.all(
+                          color: isFocused ? AppColors.neonYellow : (isNextEpisode ? AppColors.success.withValues(alpha: 0.6) : AppColors.cardBorder), 
+                          width: isFocused ? 3 * tvScale : ((isNextEpisode ? 2 : 1.5) * tvScale),
                         ),
-                        errorWidget: (context, url, error) => Container(
-                          color: AppColors.surface,
-                          child: Icon(Icons.movie, color: AppColors.textMuted, size: 40),
-                        ),
+                        boxShadow: isFocused
+                            ? [
+                                BoxShadow(
+                                  color: AppColors.neonYellow.withValues(alpha: 0.4),
+                                  blurRadius: 20 * tvScale,
+                                  spreadRadius: 2 * tvScale,
+                                ),
+                              ]
+                            : [
+                                BoxShadow(
+                                  color: isNextEpisode 
+                                      ? AppColors.success.withValues(alpha: 0.15)
+                                      : Colors.white.withValues(alpha: 0.05),
+                                  blurRadius: (isNextEpisode ? 15 : 10) * tvScale,
+                                  spreadRadius: (isNextEpisode ? 0 : -2) * tvScale,
+                                ),
+                              ],
                       ),
-                      // Dark overlay for play button
-                      Container(color: AppColors.background.withValues(alpha: 0.3)),
-                      // Play button
-                      Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: isNextEpisode ? AppColors.success : AppColors.neonYellow,
-                            shape: BoxShape.circle,
-                            boxShadow: [BoxShadow(
-                              color: isNextEpisode ? AppColors.success.withValues(alpha: 0.5) : AppColors.neonGlowStrong, 
-                              blurRadius: 20,
-                            )],
-                          ),
-                          child: Icon(
-                            isNextEpisode ? Icons.skip_next : Icons.play_arrow, 
-                            color: AppColors.background, 
-                            size: 26,
-                          ),
-                        ),
-                      ),
-                      // Episode badge - top right
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: badgeColor,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(11),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            CachedNetworkImage(
+                              imageUrl: history.coverImage ?? '',
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(
+                                color: AppColors.surface,
+                                child: Center(child: CircularProgressIndicator(color: AppColors.neonYellow, strokeWidth: 2)),
+                              ),
+                              errorWidget: (context, url, error) => Container(
+                                color: AppColors.surface,
+                                child: Icon(Icons.movie, color: AppColors.textMuted, size: 40),
+                              ),
+                            ),
+                            // Dark overlay for play button
+                            Container(color: AppColors.background.withValues(alpha: 0.3)),
+                            // Focus overlay
+                            if (isFocused)
+                              Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.transparent,
+                                      AppColors.neonYellow.withValues(alpha: 0.2),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            // Play button
+                            Center(
+                              child: Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: isFocused ? AppColors.neonYellow : (isNextEpisode ? AppColors.success : AppColors.neonYellow),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [BoxShadow(
+                                    color: isFocused ? AppColors.neonYellow.withValues(alpha: 0.6) : (isNextEpisode ? AppColors.success.withValues(alpha: 0.5) : AppColors.neonGlowStrong), 
+                                    blurRadius: 20,
+                                  )],
+                                ),
+                                child: Icon(
+                                  isNextEpisode ? Icons.skip_next : Icons.play_arrow, 
+                                  color: AppColors.background, 
+                                  size: 26,
+                                ),
+                              ),
+                            ),
+                            // Episode badge - top right
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: badgeColor,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
                           child: Text(
                             badgeText,
                             style: TextStyle(color: AppColors.background, fontSize: 9, fontWeight: FontWeight.bold),
@@ -1305,12 +1378,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             const SizedBox(height: 10),
             Text(
               history.animeTitle,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+              style: TextStyle(
+                color: isFocused ? AppColors.neonYellow : AppColors.textPrimary, 
+                fontSize: 13, 
+                fontWeight: isFocused ? FontWeight.bold : FontWeight.w500,
+              ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
+      ),
+    );
+        },
       ),
     );
   }
@@ -1450,6 +1530,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final tvScale = TvScale.factor(context);
     
     return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
+          // Handle Select/Enter/Space for Fire TV remote
+          if (event.logicalKey == LogicalKeyboardKey.select ||
+              event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.space ||
+              event.logicalKey == LogicalKeyboardKey.gameButtonA) {
+            _navigateToDetails(anime);
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
       child: Builder(
         builder: (context) {
           final isFocused = Focus.of(context).hasFocus;
