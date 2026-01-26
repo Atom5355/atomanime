@@ -1,0 +1,53 @@
+name: atomanime
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.0
+  cached_network_image: ^3.3.1
+  video_player: ^2.8.2
+  chewie: ^1.8.1
+  provider: ^6.1.1
+  shimmer: ^3.0.0
+  flutter_html: ^3.0.0-beta.2
+  url_launcher: ^6.2.4
+  media_kit: ^1.2.6
+  media_kit_video: ^2.0.1
+  media_kit_libs_windows_video: ^1.0.11
+  media_kit_libs_android_video: ^1.3.6
+  window_manager: ^0.3.8
+  path: ^1.9.0
+  path_provider: ^2.1.1
+  supabase_flutter: ^2.3.0
+  shared_preferences: ^2.2.2
+  crypto: ^3.0.3
+  uuid: ^4.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  msix: ^3.16.7
+
+flutter:
+  uses-material-design: true
+
+msix_config:
+  display_name: ATOM ANIME
+  publisher_display_name: ATOM
+  identity_name: com.atom.atomanime
+  publisher: CN=ATOM, O=ATOM, C=US
+  msix_version: 1.0.0.0
+  logo_path: windows/runner/resources/app_icon.ico
+  capabilities: internetClient
+  languages: en-us
+  architecture: x64
+  certificate_path: build/ATOM_ANIME.pfx
+  certificate_password: atomanimecert
+  install_certificate: true
