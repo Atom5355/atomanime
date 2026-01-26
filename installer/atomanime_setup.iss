@@ -1,7 +1,7 @@
 ; ATOM ANIME Installer Script for Inno Setup
 
 #define MyAppName "ATOM ANIME"
-#define MyAppVersion "1.3.0"
+#define MyAppVersion "1.4.0"
 #define MyAppPublisher "ATOM"
 #define MyAppURL "https://github.com/atom/atomanime"
 #define MyAppExeName "atomanime.exe"
