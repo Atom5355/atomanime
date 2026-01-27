@@ -200,34 +200,37 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
           child: AnimatedBuilder(
             animation: _animationController,
             builder: (context, child) {
+              final tvScale = TvScale.factor(context);
+              final isTv = TvScale.isTvMode(context);
+              
               return Opacity(
                 opacity: _fadeAnimation.value,
                 child: Transform.scale(
                   scale: _scaleAnimation.value,
                   child: Column(
                     children: [
-                      const SizedBox(height: 48),
+                      SizedBox(height: isTv ? 16 : 48),
 
-                      // App logo/title with neon glow
+                      // App logo/title with neon glow - smaller on TV
                       _buildLogo(),
-                      const SizedBox(height: 16),
-                      const NeonText(
+                      SizedBox(height: isTv ? 8 : 16),
+                      NeonText(
                         'ATOM ANIME',
-                        fontSize: 36,
+                        fontSize: isTv ? 20 : 36,
                         fontWeight: FontWeight.bold,
                         glowIntensity: 0.6,
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: isTv ? 4 : 12),
                       Text(
                         'Who\'s watching?',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: isTv ? 12 : 18,
                           color: AppColors.textSecondary,
                           letterSpacing: 1,
                         ),
                       ),
 
-                      const SizedBox(height: 48),
+                      SizedBox(height: isTv ? 16 : 48),
 
                       // Profile list
                       Expanded(
@@ -251,10 +254,13 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
 
   Widget _buildLogo() {
     final tvScale = TvScale.factor(context);
+    final isTv = TvScale.isTvMode(context);
+    final logoSize = isTv ? 40.0 : 80.0;
+    final iconSize = isTv ? 24.0 : 48.0;
     
     return Container(
-      width: 80 * tvScale,
-      height: 80 * tvScale,
+      width: logoSize * tvScale,
+      height: logoSize * tvScale,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
@@ -268,14 +274,14 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
         boxShadow: [
           BoxShadow(
             color: AppColors.neonGlowStrong,
-            blurRadius: 30 * tvScale,
-            spreadRadius: 5 * tvScale,
+            blurRadius: (isTv ? 15 : 30) * tvScale,
+            spreadRadius: (isTv ? 2 : 5) * tvScale,
           ),
         ],
       ),
       child: Icon(
         Icons.play_arrow_rounded,
-        size: 48 * tvScale,
+        size: iconSize * tvScale,
         color: AppColors.background,
       ),
     );
@@ -351,7 +357,9 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
 
   Widget _buildProfileCard(Profile profile) {
     final profileColor = _parseColor(profile.avatarColor ?? '#FFD700');
-    final tvScale = TvScale.factor(context);
+    final isTv = TvScale.isTvMode(context);
+    // Use smaller scale on TV so profiles fit better
+    final tvScale = isTv ? 1.0 : TvScale.factor(context);
 
     return Focus(
       onKeyEvent: (node, event) {
