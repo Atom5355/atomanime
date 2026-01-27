@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
@@ -129,7 +130,18 @@ class MainApp extends StatelessWidget {
         },
         child: Consumer<TvInputDetector>(
           builder: (context, tvDetector, child) {
-            return MaterialApp(
+            return PopScope(
+              canPop: false,
+              onPopInvokedWithResult: (didPop, result) {
+                if (!didPop) {
+                  // Handle back button - navigate back if possible
+                  if (navigatorKey.currentState?.canPop() ?? false) {
+                    navigatorKey.currentState?.pop();
+                  }
+                  // If can't pop, don't exit app - just ignore
+                }
+              },
+              child: MaterialApp(
               navigatorKey: navigatorKey,
               title: 'ATOM ANIME',
               debugShowCheckedModeBanner: false,
@@ -157,6 +169,7 @@ class MainApp extends StatelessWidget {
                 '/': (context) => const ProfileSelectionScreen(),
                 '/home': (context) => const HomeScreen(),
               },
+            ),
             );
           },
         ),

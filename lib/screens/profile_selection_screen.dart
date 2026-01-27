@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:ui';
 import '../services/profile_service.dart';
 import '../models/profile.dart';
@@ -352,185 +353,270 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
     final profileColor = _parseColor(profile.avatarColor ?? '#FFD700');
     final tvScale = TvScale.factor(context);
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: _isSelecting ? null : () => _selectProfile(profile),
-        onLongPress: _isSelecting ? null : () => _removeProfile(profile),
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 200),
-          opacity: _isSelecting ? 0.5 : 1.0,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20 * tvScale),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                width: 160 * tvScale,
-                padding: EdgeInsets.all(20 * tvScale),
-                decoration: BoxDecoration(
-                  color: AppColors.glass,
-                  borderRadius: BorderRadius.circular(20 * tvScale),
-                  border: Border.all(
-                    color: profileColor.withValues(alpha: 0.3),
-                    width: 1.5 * tvScale,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: profileColor.withValues(alpha: 0.2),
-                      blurRadius: 20 * tvScale,
-                      spreadRadius: -5 * tvScale,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Avatar with glow
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: profileColor.withValues(alpha: 0.4),
-                            blurRadius: 15 * tvScale,
-                            spreadRadius: 2 * tvScale,
+    return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.select ||
+              event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.space ||
+              event.logicalKey == LogicalKeyboardKey.gameButtonA) {
+            if (!_isSelecting) {
+              _selectProfile(profile);
+            }
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Builder(
+        builder: (context) {
+          final isFocused = Focus.of(context).hasFocus;
+          
+          return MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: _isSelecting ? null : () => _selectProfile(profile),
+              onLongPress: _isSelecting ? null : () => _removeProfile(profile),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                transform: isFocused ? (Matrix4.identity()..scale(1.08)) : Matrix4.identity(),
+                transformAlignment: Alignment.center,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: _isSelecting ? 0.5 : 1.0,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20 * tvScale),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        width: 160 * tvScale,
+                        padding: EdgeInsets.all(20 * tvScale),
+                        decoration: BoxDecoration(
+                          color: AppColors.glass,
+                          borderRadius: BorderRadius.circular(20 * tvScale),
+                          border: Border.all(
+                            color: isFocused ? AppColors.neonYellow : profileColor.withValues(alpha: 0.3),
+                            width: isFocused ? 3 * tvScale : 1.5 * tvScale,
                           ),
-                        ],
-                      ),
-                      child: CircleAvatar(
-                        radius: 42 * tvScale,
-                        backgroundColor: profileColor,
-                        child: Text(
-                          profile.name.isNotEmpty
-                              ? profile.name[0].toUpperCase()
-                              : '?',
-                          style: TextStyle(
-                            fontSize: 32 * tvScale,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.background,
-                          ),
+                          boxShadow: isFocused
+                              ? [
+                                  BoxShadow(
+                                    color: AppColors.neonYellow.withValues(alpha: 0.5),
+                                    blurRadius: 25 * tvScale,
+                                    spreadRadius: 3 * tvScale,
+                                  ),
+                                ]
+                              : [
+                                  BoxShadow(
+                                    color: profileColor.withValues(alpha: 0.2),
+                                    blurRadius: 20 * tvScale,
+                                    spreadRadius: -5 * tvScale,
+                                  ),
+                                ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Avatar with glow
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: profileColor.withValues(alpha: 0.4),
+                                    blurRadius: 15 * tvScale,
+                                    spreadRadius: 2 * tvScale,
+                                  ),
+                                ],
+                              ),
+                              child: CircleAvatar(
+                                radius: 42 * tvScale,
+                                backgroundColor: profileColor,
+                                child: Text(
+                                  profile.name.isNotEmpty
+                                      ? profile.name[0].toUpperCase()
+                                      : '?',
+                                  style: TextStyle(
+                                    fontSize: 32 * tvScale,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.background,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 16 * tvScale),
+
+                            // Name
+                            Text(
+                              profile.name,
+                              style: TextStyle(
+                                fontSize: 16 * tvScale,
+                                fontWeight: FontWeight.w600,
+                                color: isFocused ? AppColors.neonYellow : AppColors.textPrimary,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            SizedBox(height: 8 * tvScale),
+
+                            // Lock indicator
+                            FutureBuilder<bool>(
+                              future: _profileService.requiresPin(profile.id),
+                              builder: (context, snapshot) {
+                                final requiresPin = snapshot.data ?? true;
+                                return Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 10 * tvScale,
+                                    vertical: 4 * tvScale,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: requiresPin
+                                        ? AppColors.neonYellow.withValues(alpha: 0.1)
+                                        : AppColors.success.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(12 * tvScale),
+                                    border: Border.all(
+                                      color: requiresPin
+                                          ? AppColors.neonYellow.withValues(alpha: 0.3)
+                                          : AppColors.success.withValues(alpha: 0.3),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        requiresPin ? Icons.lock : Icons.lock_open,
+                                        size: 12 * tvScale,
+                                        color: requiresPin
+                                            ? AppColors.neonYellow
+                                            : AppColors.success,
+                                      ),
+                                      SizedBox(width: 4 * tvScale),
+                                      Text(
+                                        requiresPin ? 'PIN' : 'Quick',
+                                        style: TextStyle(
+                                          fontSize: 11 * tvScale,
+                                          color: requiresPin
+                                              ? AppColors.neonYellow
+                                              : AppColors.success,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    SizedBox(height: 16 * tvScale),
-
-                    // Name
-                    Text(
-                      profile.name,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Lock indicator
-                    FutureBuilder<bool>(
-                      future: _profileService.requiresPin(profile.id),
-                      builder: (context, snapshot) {
-                        final requiresPin = snapshot.data ?? true;
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: requiresPin
-                                ? AppColors.neonYellow.withValues(alpha: 0.1)
-                                : AppColors.success.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: requiresPin
-                                  ? AppColors.neonYellow.withValues(alpha: 0.3)
-                                  : AppColors.success.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                requiresPin ? Icons.lock : Icons.lock_open,
-                                size: 12,
-                                color: requiresPin
-                                    ? AppColors.neonYellow
-                                    : AppColors.success,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                requiresPin ? 'PIN' : 'Quick',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: requiresPin
-                                      ? AppColors.neonYellow
-                                      : AppColors.success,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 
   Widget _buildBottomActions() {
+    final tvScale = TvScale.factor(context);
+    
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(24 * tvScale),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Login button - outlined style
-          OutlinedButton.icon(
-            onPressed: _isSelecting ? null : _showLoginDialog,
-            icon: const Icon(Icons.login),
-            label: const Text('Login'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.neonYellow,
-              side: BorderSide(color: AppColors.neonYellow.withValues(alpha: 0.5)),
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
+          // Login button - outlined style with Focus for D-Pad
+          Focus(
+            onKeyEvent: (node, event) {
+              if (event is KeyDownEvent) {
+                if (event.logicalKey == LogicalKeyboardKey.select ||
+                    event.logicalKey == LogicalKeyboardKey.enter ||
+                    event.logicalKey == LogicalKeyboardKey.space) {
+                  if (!_isSelecting) _showLoginDialog();
+                  return KeyEventResult.handled;
+                }
+              }
+              return KeyEventResult.ignored;
+            },
+            child: Builder(
+              builder: (context) {
+                final isFocused = Focus.of(context).hasFocus;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  transform: isFocused ? (Matrix4.identity()..scale(1.05)) : Matrix4.identity(),
+                  transformAlignment: Alignment.center,
+                  child: OutlinedButton.icon(
+                    onPressed: _isSelecting ? null : _showLoginDialog,
+                    icon: Icon(Icons.login, size: 20 * tvScale),
+                    label: Text('Login', style: TextStyle(fontSize: 14 * tvScale)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: isFocused ? AppColors.background : AppColors.neonYellow,
+                      backgroundColor: isFocused ? AppColors.neonYellow : Colors.transparent,
+                      side: BorderSide(
+                        color: isFocused ? AppColors.neonYellow : AppColors.neonYellow.withValues(alpha: 0.5),
+                        width: isFocused ? 2 : 1,
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 28 * tvScale, vertical: 14 * tvScale),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14 * tvScale),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: 16 * tvScale),
 
-          // Create profile button - neon style
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.neonGlow,
-                  blurRadius: 15,
-                  spreadRadius: -2,
-                ),
-              ],
-            ),
-            child: ElevatedButton.icon(
-              onPressed: _isSelecting ? null : _showSignupDialog,
-              icon: const Icon(Icons.person_add),
-              label: const Text('Create Profile'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.neonYellow,
-                foregroundColor: AppColors.background,
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
+          // Create profile button - neon style with Focus for D-Pad
+          Focus(
+            onKeyEvent: (node, event) {
+              if (event is KeyDownEvent) {
+                if (event.logicalKey == LogicalKeyboardKey.select ||
+                    event.logicalKey == LogicalKeyboardKey.enter ||
+                    event.logicalKey == LogicalKeyboardKey.space) {
+                  if (!_isSelecting) _showSignupDialog();
+                  return KeyEventResult.handled;
+                }
+              }
+              return KeyEventResult.ignored;
+            },
+            child: Builder(
+              builder: (context) {
+                final isFocused = Focus.of(context).hasFocus;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  transform: isFocused ? (Matrix4.identity()..scale(1.05)) : Matrix4.identity(),
+                  transformAlignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14 * tvScale),
+                    boxShadow: [
+                      BoxShadow(
+                        color: isFocused ? AppColors.neonYellow.withValues(alpha: 0.6) : AppColors.neonGlow,
+                        blurRadius: isFocused ? 25 : 15,
+                        spreadRadius: isFocused ? 2 : -2,
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton.icon(
+                    onPressed: _isSelecting ? null : _showSignupDialog,
+                    icon: Icon(Icons.person_add, size: 20 * tvScale),
+                    label: Text('Create Profile', style: TextStyle(fontSize: 14 * tvScale)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.neonYellow,
+                      foregroundColor: AppColors.background,
+                      padding: EdgeInsets.symmetric(horizontal: 28 * tvScale, vertical: 14 * tvScale),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14 * tvScale),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
