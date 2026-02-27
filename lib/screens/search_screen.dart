@@ -242,6 +242,11 @@ class _SearchScreenState extends State<SearchScreen> {
       crossAxisSpacing: 14 * tvScale,
       mainAxisSpacing: 14 * tvScale,
       padding: EdgeInsets.all(16 * tvScale),
+      onItemSelect: (index) {
+        if (index < results.length) {
+          _navigateToDetails(results[index]);
+        }
+      },
       itemBuilder: (context, index, isFocused) {
         return _buildSearchResultCard(results[index], isFocused, tvScale);
       },

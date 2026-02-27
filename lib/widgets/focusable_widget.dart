@@ -127,6 +127,7 @@ class FocusableHorizontalList extends StatefulWidget {
   final EdgeInsetsGeometry? padding;
   final ScrollController? scrollController;
   final String? sectionLabel; // For accessibility
+  final void Function(int index)? onItemSelect; // Called when Enter/Select pressed on focused item
 
   const FocusableHorizontalList({
     super.key,
@@ -138,6 +139,7 @@ class FocusableHorizontalList extends StatefulWidget {
     this.padding,
     this.scrollController,
     this.sectionLabel,
+    this.onItemSelect,
   });
 
   @override
@@ -235,6 +237,17 @@ class _FocusableHorizontalListState extends State<FocusableHorizontalList> {
         _focusNodes[_focusedIndex + 1].requestFocus();
       }
       return KeyEventResult.handled;
+    }
+
+    // Handle Enter/Select/Space/GameButtonA for item selection
+    if (event.logicalKey == LogicalKeyboardKey.select ||
+        event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.space ||
+        event.logicalKey == LogicalKeyboardKey.gameButtonA) {
+      if (_focusedIndex >= 0 && widget.onItemSelect != null) {
+        widget.onItemSelect!(_focusedIndex);
+        return KeyEventResult.handled;
+      }
     }
 
     return KeyEventResult.ignored;
@@ -366,6 +379,7 @@ class FocusableGrid extends StatefulWidget {
   final double mainAxisSpacing;
   final EdgeInsetsGeometry? padding;
   final ScrollController? scrollController;
+  final void Function(int index)? onItemSelect; // Called when Enter/Select pressed on focused item
 
   const FocusableGrid({
     super.key,
@@ -377,6 +391,7 @@ class FocusableGrid extends StatefulWidget {
     this.mainAxisSpacing = 12,
     this.padding,
     this.scrollController,
+    this.onItemSelect,
   });
 
   @override
@@ -433,6 +448,16 @@ class _FocusableGridState extends State<FocusableGrid> {
       newIndex = index - cols;
     } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       newIndex = index + cols;
+    } else if (event.logicalKey == LogicalKeyboardKey.select ||
+               event.logicalKey == LogicalKeyboardKey.enter ||
+               event.logicalKey == LogicalKeyboardKey.space ||
+               event.logicalKey == LogicalKeyboardKey.gameButtonA) {
+      // Handle Enter/Select for item selection
+      if (widget.onItemSelect != null) {
+        widget.onItemSelect!(index);
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
     } else {
       return KeyEventResult.ignored;
     }

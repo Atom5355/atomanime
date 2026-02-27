@@ -575,6 +575,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           height: 260 * tvScale,
           sectionLabel: 'continue_watching',
           padding: EdgeInsets.symmetric(horizontal: 12 * tvScale),
+          onItemSelect: (index) {
+            if (index < _continueWatching.length) {
+              _resumeWatching(_continueWatching[index]);
+            }
+          },
           itemBuilder: (context, index, isFocused) {
             return _buildContinueWatchingCard(_continueWatching[index], isFocused);
           },
@@ -745,6 +750,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           height: 260 * tvScale,
           sectionLabel: title.toLowerCase().replaceAll(' ', '_'),
           padding: EdgeInsets.symmetric(horizontal: 12 * tvScale),
+          onItemSelect: (index) {
+            if (index < animeList.length) {
+              _navigateToDetails(animeList[index]);
+            }
+          },
           itemBuilder: (context, index, isFocused) {
             return _buildAnimeCard(animeList[index], isFocused);
           },
