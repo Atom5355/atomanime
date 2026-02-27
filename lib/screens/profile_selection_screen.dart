@@ -1,13 +1,14 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'dart:ui';
+import 'package:flutter/material.dart';
 import '../services/profile_service.dart';
 import '../models/profile.dart';
 import '../widgets/profile_dialogs.dart';
+import '../widgets/focusable_widget.dart';
 import '../theme/app_theme.dart';
 import '../main.dart' show TvScale;
 
 /// Screen for selecting a profile on app startup
+/// Fully accessible on PC (mouse/keyboard), Android (touch), and TV (D-Pad)
 class ProfileSelectionScreen extends StatefulWidget {
   const ProfileSelectionScreen({super.key});
 
@@ -140,17 +141,16 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
           style: const TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
-          TextButton(
+          UniversalButton(
+            label: 'Cancel',
+            isPrimary: false,
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          UniversalButton(
+            label: 'Remove',
+            color: AppColors.error,
+            textColor: Colors.white,
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Remove'),
           ),
         ],
       ),
@@ -200,7 +200,6 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
           child: AnimatedBuilder(
             animation: _animationController,
             builder: (context, child) {
-              final tvScale = TvScale.factor(context);
               final isTv = TvScale.isTvMode(context);
               
               return Opacity(
@@ -211,26 +210,38 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
                     children: [
                       SizedBox(height: isTv ? 16 : 48),
 
-                      // App logo/title with neon glow - smaller on TV
-                      _buildLogo(),
-                      SizedBox(height: isTv ? 8 : 16),
-                      NeonText(
-                        'ATOM ANIME',
-                        fontSize: isTv ? 20 : 36,
-                        fontWeight: FontWeight.bold,
-                        glowIntensity: 0.6,
-                      ),
-                      SizedBox(height: isTv ? 4 : 12),
-                      Text(
-                        'Who\'s watching?',
-                        style: TextStyle(
-                          fontSize: isTv ? 12 : 18,
-                          color: AppColors.textSecondary,
-                          letterSpacing: 1,
+                      // App logo/title - minimal on TV
+                      if (!isTv) ...[
+                        _buildLogo(),
+                        const SizedBox(height: 16),
+                        const NeonText(
+                          'ATOM ANIME',
+                          fontSize: 36,
+                          fontWeight: FontWeight.bold,
+                          glowIntensity: 0.6,
                         ),
-                      ),
-
-                      SizedBox(height: isTv ? 16 : 48),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Who\'s watching?',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: AppColors.textSecondary,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 48),
+                      ] else ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Select Profile',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
 
                       // Profile list
                       Expanded(
@@ -256,21 +267,12 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
     final tvScale = TvScale.factor(context);
     final isTv = TvScale.isTvMode(context);
     final logoSize = isTv ? 40.0 : 80.0;
-    final iconSize = isTv ? 24.0 : 48.0;
     
     return Container(
       width: logoSize * tvScale,
       height: logoSize * tvScale,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.neonYellow,
-            AppColors.neonYellowLight,
-          ],
-        ),
         boxShadow: [
           BoxShadow(
             color: AppColors.neonGlowStrong,
@@ -279,10 +281,13 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
           ),
         ],
       ),
-      child: Icon(
-        Icons.play_arrow_rounded,
-        size: iconSize * tvScale,
-        color: AppColors.background,
+      child: ClipOval(
+        child: Image.asset(
+          'AtomAnimeLogo.png',
+          width: logoSize * tvScale,
+          height: logoSize * tvScale,
+          fit: BoxFit.cover,
+        ),
       ),
     );
   }
@@ -344,7 +349,7 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
                   scale: value,
                   child: Opacity(
                     opacity: value,
-                    child: _buildProfileCard(entry.value),
+                    child: _buildProfileCard(entry.value, autofocus: entry.key == 0),
                   ),
                 );
               },
@@ -355,177 +360,150 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
     );
   }
 
-  Widget _buildProfileCard(Profile profile) {
+  Widget _buildProfileCard(Profile profile, {bool autofocus = false}) {
     final profileColor = _parseColor(profile.avatarColor ?? '#FFD700');
     final isTv = TvScale.isTvMode(context);
-    // Use smaller scale on TV so profiles fit better
     final tvScale = isTv ? 1.0 : TvScale.factor(context);
 
-    return Focus(
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent) {
-          if (event.logicalKey == LogicalKeyboardKey.select ||
-              event.logicalKey == LogicalKeyboardKey.enter ||
-              event.logicalKey == LogicalKeyboardKey.space ||
-              event.logicalKey == LogicalKeyboardKey.gameButtonA) {
-            if (!_isSelecting) {
-              _selectProfile(profile);
-            }
-            return KeyEventResult.handled;
-          }
-        }
-        return KeyEventResult.ignored;
-      },
-      child: Builder(
-        builder: (context) {
-          final isFocused = Focus.of(context).hasFocus;
-          
-          return MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: _isSelecting ? null : () => _selectProfile(profile),
-              onLongPress: _isSelecting ? null : () => _removeProfile(profile),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                transform: isFocused ? (Matrix4.identity()..scale(1.08)) : Matrix4.identity(),
-                transformAlignment: Alignment.center,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: _isSelecting ? 0.5 : 1.0,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20 * tvScale),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        width: 160 * tvScale,
-                        padding: EdgeInsets.all(20 * tvScale),
-                        decoration: BoxDecoration(
-                          color: AppColors.glass,
-                          borderRadius: BorderRadius.circular(20 * tvScale),
-                          border: Border.all(
-                            color: isFocused ? AppColors.neonYellow : profileColor.withValues(alpha: 0.3),
-                            width: isFocused ? 3 * tvScale : 1.5 * tvScale,
+    return FocusableWidget(
+      autofocus: autofocus,
+      onSelect: _isSelecting ? null : () => _selectProfile(profile),
+      onLongPress: _isSelecting ? null : () => _removeProfile(profile),
+      focusScale: 1.08,
+      builder: (context, isFocused, isHovered) {
+        return AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: _isSelecting ? 0.5 : 1.0,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20 * tvScale),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                width: 160 * tvScale,
+                padding: EdgeInsets.all(20 * tvScale),
+                decoration: BoxDecoration(
+                  color: AppColors.glass,
+                  borderRadius: BorderRadius.circular(20 * tvScale),
+                  border: Border.all(
+                    color: isFocused ? AppColors.neonYellow : profileColor.withValues(alpha: 0.3),
+                    width: isFocused ? 3 * tvScale : 1.5 * tvScale,
+                  ),
+                  boxShadow: isFocused
+                      ? [
+                          BoxShadow(
+                            color: AppColors.neonYellow.withValues(alpha: 0.5),
+                            blurRadius: 25 * tvScale,
+                            spreadRadius: 3 * tvScale,
                           ),
-                          boxShadow: isFocused
-                              ? [
-                                  BoxShadow(
-                                    color: AppColors.neonYellow.withValues(alpha: 0.5),
-                                    blurRadius: 25 * tvScale,
-                                    spreadRadius: 3 * tvScale,
-                                  ),
-                                ]
-                              : [
-                                  BoxShadow(
-                                    color: profileColor.withValues(alpha: 0.2),
-                                    blurRadius: 20 * tvScale,
-                                    spreadRadius: -5 * tvScale,
-                                  ),
-                                ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Avatar with glow
-                            Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: profileColor.withValues(alpha: 0.4),
-                                    blurRadius: 15 * tvScale,
-                                    spreadRadius: 2 * tvScale,
-                                  ),
-                                ],
-                              ),
-                              child: CircleAvatar(
-                                radius: 42 * tvScale,
-                                backgroundColor: profileColor,
-                                child: Text(
-                                  profile.name.isNotEmpty
-                                      ? profile.name[0].toUpperCase()
-                                      : '?',
-                                  style: TextStyle(
-                                    fontSize: 32 * tvScale,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.background,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: 16 * tvScale),
-
-                            // Name
-                            Text(
-                              profile.name,
-                              style: TextStyle(
-                                fontSize: 16 * tvScale,
-                                fontWeight: FontWeight.w600,
-                                color: isFocused ? AppColors.neonYellow : AppColors.textPrimary,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            SizedBox(height: 8 * tvScale),
-
-                            // Lock indicator
-                            FutureBuilder<bool>(
-                              future: _profileService.requiresPin(profile.id),
-                              builder: (context, snapshot) {
-                                final requiresPin = snapshot.data ?? true;
-                                return Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 10 * tvScale,
-                                    vertical: 4 * tvScale,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: requiresPin
-                                        ? AppColors.neonYellow.withValues(alpha: 0.1)
-                                        : AppColors.success.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(12 * tvScale),
-                                    border: Border.all(
-                                      color: requiresPin
-                                          ? AppColors.neonYellow.withValues(alpha: 0.3)
-                                          : AppColors.success.withValues(alpha: 0.3),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        requiresPin ? Icons.lock : Icons.lock_open,
-                                        size: 12 * tvScale,
-                                        color: requiresPin
-                                            ? AppColors.neonYellow
-                                            : AppColors.success,
-                                      ),
-                                      SizedBox(width: 4 * tvScale),
-                                      Text(
-                                        requiresPin ? 'PIN' : 'Quick',
-                                        style: TextStyle(
-                                          fontSize: 11 * tvScale,
-                                          color: requiresPin
-                                              ? AppColors.neonYellow
-                                              : AppColors.success,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
+                        ]
+                      : [
+                          BoxShadow(
+                            color: profileColor.withValues(alpha: 0.2),
+                            blurRadius: 20 * tvScale,
+                            spreadRadius: -5 * tvScale,
+                          ),
+                        ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Avatar with glow
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: profileColor.withValues(alpha: 0.4),
+                            blurRadius: 15 * tvScale,
+                            spreadRadius: 2 * tvScale,
+                          ),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        radius: 42 * tvScale,
+                        backgroundColor: profileColor,
+                        child: Text(
+                          profile.name.isNotEmpty
+                              ? profile.name[0].toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                            fontSize: 32 * tvScale,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.background,
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                    SizedBox(height: 16 * tvScale),
+
+                    // Name
+                    Text(
+                      profile.name,
+                      style: TextStyle(
+                        fontSize: 16 * tvScale,
+                        fontWeight: FontWeight.w600,
+                        color: isFocused ? AppColors.neonYellow : AppColors.textPrimary,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: 8 * tvScale),
+
+                    // Lock indicator
+                    FutureBuilder<bool>(
+                      future: _profileService.requiresPin(profile.id),
+                      builder: (context, snapshot) {
+                        final requiresPin = snapshot.data ?? true;
+                        return Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 10 * tvScale,
+                            vertical: 4 * tvScale,
+                          ),
+                          decoration: BoxDecoration(
+                            color: requiresPin
+                                ? AppColors.neonYellow.withValues(alpha: 0.1)
+                                : AppColors.success.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12 * tvScale),
+                            border: Border.all(
+                              color: requiresPin
+                                  ? AppColors.neonYellow.withValues(alpha: 0.3)
+                                  : AppColors.success.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                requiresPin ? Icons.lock : Icons.lock_open,
+                                size: 12 * tvScale,
+                                color: requiresPin
+                                    ? AppColors.neonYellow
+                                    : AppColors.success,
+                              ),
+                              SizedBox(width: 4 * tvScale),
+                              Text(
+                                requiresPin ? 'PIN' : 'Quick',
+                                style: TextStyle(
+                                  fontSize: 11 * tvScale,
+                                  color: requiresPin
+                                      ? AppColors.neonYellow
+                                      : AppColors.success,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -537,95 +515,24 @@ class _ProfileSelectionScreenState extends State<ProfileSelectionScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Login button - outlined style with Focus for D-Pad
-          Focus(
-            onKeyEvent: (node, event) {
-              if (event is KeyDownEvent) {
-                if (event.logicalKey == LogicalKeyboardKey.select ||
-                    event.logicalKey == LogicalKeyboardKey.enter ||
-                    event.logicalKey == LogicalKeyboardKey.space) {
-                  if (!_isSelecting) _showLoginDialog();
-                  return KeyEventResult.handled;
-                }
-              }
-              return KeyEventResult.ignored;
-            },
-            child: Builder(
-              builder: (context) {
-                final isFocused = Focus.of(context).hasFocus;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  transform: isFocused ? (Matrix4.identity()..scale(1.05)) : Matrix4.identity(),
-                  transformAlignment: Alignment.center,
-                  child: OutlinedButton.icon(
-                    onPressed: _isSelecting ? null : _showLoginDialog,
-                    icon: Icon(Icons.login, size: 20 * tvScale),
-                    label: Text('Login', style: TextStyle(fontSize: 14 * tvScale)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: isFocused ? AppColors.background : AppColors.neonYellow,
-                      backgroundColor: isFocused ? AppColors.neonYellow : Colors.transparent,
-                      side: BorderSide(
-                        color: isFocused ? AppColors.neonYellow : AppColors.neonYellow.withValues(alpha: 0.5),
-                        width: isFocused ? 2 : 1,
-                      ),
-                      padding: EdgeInsets.symmetric(horizontal: 28 * tvScale, vertical: 14 * tvScale),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14 * tvScale),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
+          // Login button
+          UniversalButton(
+            label: 'Login',
+            icon: Icons.login,
+            isPrimary: false,
+            onPressed: _isSelecting ? null : _showLoginDialog,
+            fontSize: 14 * tvScale,
+            padding: EdgeInsets.symmetric(horizontal: 28 * tvScale, vertical: 14 * tvScale),
           ),
           SizedBox(width: 16 * tvScale),
 
-          // Create profile button - neon style with Focus for D-Pad
-          Focus(
-            onKeyEvent: (node, event) {
-              if (event is KeyDownEvent) {
-                if (event.logicalKey == LogicalKeyboardKey.select ||
-                    event.logicalKey == LogicalKeyboardKey.enter ||
-                    event.logicalKey == LogicalKeyboardKey.space) {
-                  if (!_isSelecting) _showSignupDialog();
-                  return KeyEventResult.handled;
-                }
-              }
-              return KeyEventResult.ignored;
-            },
-            child: Builder(
-              builder: (context) {
-                final isFocused = Focus.of(context).hasFocus;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  transform: isFocused ? (Matrix4.identity()..scale(1.05)) : Matrix4.identity(),
-                  transformAlignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14 * tvScale),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isFocused ? AppColors.neonYellow.withValues(alpha: 0.6) : AppColors.neonGlow,
-                        blurRadius: isFocused ? 25 : 15,
-                        spreadRadius: isFocused ? 2 : -2,
-                      ),
-                    ],
-                  ),
-                  child: ElevatedButton.icon(
-                    onPressed: _isSelecting ? null : _showSignupDialog,
-                    icon: Icon(Icons.person_add, size: 20 * tvScale),
-                    label: Text('Create Profile', style: TextStyle(fontSize: 14 * tvScale)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.neonYellow,
-                      foregroundColor: AppColors.background,
-                      padding: EdgeInsets.symmetric(horizontal: 28 * tvScale, vertical: 14 * tvScale),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14 * tvScale),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
+          // Create profile button
+          UniversalButton(
+            label: 'Create Profile',
+            icon: Icons.person_add,
+            onPressed: _isSelecting ? null : _showSignupDialog,
+            fontSize: 14 * tvScale,
+            padding: EdgeInsets.symmetric(horizontal: 28 * tvScale, vertical: 14 * tvScale),
           ),
         ],
       ),

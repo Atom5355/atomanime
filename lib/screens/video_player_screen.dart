@@ -72,6 +72,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   int _autoplayCountdown = 15; // Reduced to 15 seconds since it triggers later
   Timer? _autoplayTimer;
   bool _autoplayCancelled = false;
+  bool _isPlayingNextEpisode = false; // Prevents re-triggering autoplay during download
   Episode? _nextEpisode;
   bool _isLoadingNextEpisode = false;
   
@@ -111,11 +112,32 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     // Initialize video enhancement (set mpv properties before video loads)
     _initializeVideoEnhancement();
     
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeRight,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.portraitUp,
-    ]);
+    // Only allow landscape on TV to prevent crashes
+    // On mobile, allow portrait as well
+    if (Platform.isAndroid) {
+      final size = WidgetsBinding.instance.platformDispatcher.views.first.physicalSize;
+      final isLargeScreen = size.shortestSide > 600 * WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+      if (isLargeScreen) {
+        // TV mode - landscape only
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.landscapeRight,
+          DeviceOrientation.landscapeLeft,
+        ]);
+      } else {
+        // Mobile - allow portrait too
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.landscapeRight,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.portraitUp,
+        ]);
+      }
+    } else {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeRight,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.portraitUp,
+      ]);
+    }
     
     // Load resume position FIRST, then load streaming data
     _initializePlayback();
@@ -163,7 +185,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   /// Check if we should show autoplay overlay (1 minute before end)
   void _checkAutoplayTrigger() {
-    if (_isDisposed || _autoplayCancelled || _showAutoplayOverlay) return;
+    if (_isDisposed || _autoplayCancelled || _showAutoplayOverlay || _isPlayingNextEpisode) return;
     if (widget.animeId == null || widget.episodeNumber == null) return;
     
     final position = _player.state.position;
@@ -253,6 +275,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     if (_nextEpisode == null || widget.animeId == null) return;
     
     _autoplayTimer?.cancel();
+    _isPlayingNextEpisode = true; // Prevent autoplay from re-triggering
     setState(() {
       _showAutoplayOverlay = false;
     });
@@ -478,9 +501,28 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _saveWatchProgress();
     
     _focusNode.dispose();
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-    ]);
+    // On TV, keep landscape orientation to prevent crashes
+    // On mobile, reset to portrait
+    if (Platform.isAndroid) {
+      final size = WidgetsBinding.instance.platformDispatcher.views.first.physicalSize;
+      final isLargeScreen = size.shortestSide > 600 * WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+      if (isLargeScreen) {
+        // TV mode - stay in landscape
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.landscapeRight,
+          DeviceOrientation.landscapeLeft,
+        ]);
+      } else {
+        // Mobile - reset to portrait
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+        ]);
+      }
+    } else {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+      ]);
+    }
     _player.dispose();
     super.dispose();
   }

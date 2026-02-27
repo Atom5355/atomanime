@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/anime.dart';
@@ -205,12 +206,47 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with TickerProv
               Positioned(
                 top: MediaQuery.of(context).padding.top + 8,
                 left: 16,
-                child: GlassCard(
-                  padding: EdgeInsets.zero,
-                  borderRadius: 12,
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-                    onPressed: () => Navigator.pop(context),
+                child: Focus(
+                  onKeyEvent: (node, event) {
+                    if (event is KeyDownEvent) {
+                      if (event.logicalKey == LogicalKeyboardKey.select ||
+                          event.logicalKey == LogicalKeyboardKey.enter ||
+                          event.logicalKey == LogicalKeyboardKey.space ||
+                          event.logicalKey == LogicalKeyboardKey.gameButtonA) {
+                        Navigator.pop(context);
+                        return KeyEventResult.handled;
+                      }
+                    }
+                    return KeyEventResult.ignored;
+                  },
+                  child: Builder(
+                    builder: (context) {
+                      final isFocused = Focus.of(context).hasFocus;
+                      return GlassCard(
+                        padding: EdgeInsets.zero,
+                        borderRadius: 12,
+                        child: Container(
+                          decoration: isFocused ? BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.neonYellow, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.neonYellow.withValues(alpha: 0.4),
+                                blurRadius: 12,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ) : null,
+                          child: IconButton(
+                            icon: Icon(
+                              Icons.arrow_back, 
+                              color: isFocused ? AppColors.neonYellow : AppColors.textPrimary,
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -461,25 +497,50 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with TickerProv
   Widget _buildSeasonCard(RelatedSeason season, double tvScale) {
     final isCurrent = season.isCurrent;
     
-    return GestureDetector(
-      onTap: isCurrent ? null : () => _navigateToSeason(season),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 100 * tvScale,
-        margin: EdgeInsets.only(right: 12 * tvScale),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12 * tvScale),
-          border: Border.all(
-            color: isCurrent ? AppColors.neonYellow : AppColors.cardBorder,
-            width: isCurrent ? 2 : 1,
-          ),
-          boxShadow: isCurrent ? [
-            BoxShadow(
-              color: AppColors.neonYellow.withValues(alpha: 0.2),
-              blurRadius: 10,
-            ),
-          ] : null,
-        ),
+    return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent && !isCurrent) {
+          if (event.logicalKey == LogicalKeyboardKey.select ||
+              event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.space ||
+              event.logicalKey == LogicalKeyboardKey.gameButtonA) {
+            _navigateToSeason(season);
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Builder(
+        builder: (context) {
+          final isFocused = Focus.of(context).hasFocus;
+          
+          return GestureDetector(
+            onTap: isCurrent ? null : () => _navigateToSeason(season),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 100 * tvScale,
+              margin: EdgeInsets.only(right: 12 * tvScale),
+              transform: isFocused ? Matrix4.diagonal3Values(1.05, 1.05, 1) : Matrix4.identity(),
+              transformAlignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12 * tvScale),
+                border: Border.all(
+                  color: isFocused ? AppColors.neonYellow : (isCurrent ? AppColors.neonYellow : AppColors.cardBorder),
+                  width: isFocused ? 3 : (isCurrent ? 2 : 1),
+                ),
+                boxShadow: isFocused ? [
+                  BoxShadow(
+                    color: AppColors.neonYellow.withValues(alpha: 0.5),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ] : (isCurrent ? [
+                  BoxShadow(
+                    color: AppColors.neonYellow.withValues(alpha: 0.2),
+                    blurRadius: 10,
+                  ),
+                ] : null),
+              ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(11 * tvScale),
           child: Stack(
@@ -538,7 +599,7 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with TickerProv
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: isCurrent ? AppColors.neonYellow : AppColors.textPrimary,
+                        color: isFocused ? AppColors.neonYellow : (isCurrent ? AppColors.neonYellow : AppColors.textPrimary),
                         fontSize: 11 * tvScale,
                         fontWeight: FontWeight.w600,
                       ),
@@ -549,6 +610,9 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with TickerProv
             ],
           ),
         ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -625,17 +689,41 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with TickerProv
                 ),
                 child: Row(
                   children: [
-                    GestureDetector(
-                      onTap: _toggleSearch,
-                      child: Container(
-                        width: 38 * tvScale,
-                        height: 38 * tvScale,
-                        alignment: Alignment.center,
-                        child: Icon(
-                          _isSearchExpanded ? Icons.close : Icons.search,
-                          color: AppColors.textPrimary,
-                          size: 18 * tvScale,
-                        ),
+                    Focus(
+                      onKeyEvent: (node, event) {
+                        if (event is KeyDownEvent) {
+                          if (event.logicalKey == LogicalKeyboardKey.select ||
+                              event.logicalKey == LogicalKeyboardKey.enter ||
+                              event.logicalKey == LogicalKeyboardKey.space ||
+                              event.logicalKey == LogicalKeyboardKey.gameButtonA) {
+                            _toggleSearch();
+                            return KeyEventResult.handled;
+                          }
+                        }
+                        return KeyEventResult.ignored;
+                      },
+                      child: Builder(
+                        builder: (context) {
+                          final isFocused = Focus.of(context).hasFocus;
+                          return GestureDetector(
+                            onTap: _toggleSearch,
+                            child: Container(
+                              width: 38 * tvScale,
+                              height: 38 * tvScale,
+                              alignment: Alignment.center,
+                              decoration: isFocused ? BoxDecoration(
+                                color: AppColors.neonYellow.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(19 * tvScale),
+                                border: Border.all(color: AppColors.neonYellow, width: 2),
+                              ) : null,
+                              child: Icon(
+                                _isSearchExpanded ? Icons.close : Icons.search,
+                                color: isFocused ? AppColors.neonYellow : AppColors.textPrimary,
+                                size: 18 * tvScale,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                     if (_isSearchExpanded)
@@ -818,45 +906,88 @@ class _AnimeDetailsScreenState extends State<AnimeDetailsScreen> with TickerProv
     final color = isSub ? AppColors.sub : AppColors.dub;
     final tvScale = TvScale.factor(context);
     
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedCategory = category;
-        });
-        _loadEpisodeProgress();
+    return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.select ||
+              event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.space ||
+              event.logicalKey == LogicalKeyboardKey.gameButtonA) {
+            setState(() {
+              _selectedCategory = category;
+            });
+            _loadEpisodeProgress();
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(horizontal: 12 * tvScale, vertical: 6 * tvScale),
-        decoration: BoxDecoration(
-          gradient: isSelected 
-              ? LinearGradient(colors: [color, color.withValues(alpha: 0.7)])
-              : null,
-          borderRadius: BorderRadius.circular(6 * tvScale),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? AppColors.background : AppColors.textMuted,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                fontSize: 12 * tvScale,
+      child: Builder(
+        builder: (context) {
+          final isFocused = Focus.of(context).hasFocus;
+          
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedCategory = category;
+              });
+              _loadEpisodeProgress();
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: EdgeInsets.symmetric(horizontal: 12 * tvScale, vertical: 6 * tvScale),
+              decoration: BoxDecoration(
+                gradient: isSelected 
+                    ? LinearGradient(colors: [color, color.withValues(alpha: 0.7)])
+                    : null,
+                color: isFocused && !isSelected ? AppColors.surface : null,
+                borderRadius: BorderRadius.circular(6 * tvScale),
+                border: isFocused ? Border.all(
+                  color: AppColors.neonYellow,
+                  width: 2 * tvScale,
+                ) : null,
+                boxShadow: isFocused ? [
+                  BoxShadow(
+                    color: AppColors.neonYellow.withValues(alpha: 0.4),
+                    blurRadius: 12 * tvScale,
+                    spreadRadius: 1 * tvScale,
+                  ),
+                ] : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: isFocused 
+                          ? AppColors.neonYellow 
+                          : isSelected 
+                              ? AppColors.background 
+                              : AppColors.textMuted,
+                      fontWeight: isSelected || isFocused ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 12 * tvScale,
+                    ),
+                  ),
+                  if (count != null) ...[
+                    SizedBox(width: 3 * tvScale),
+                    Text(
+                      '($count)',
+                      style: TextStyle(
+                        color: isFocused 
+                            ? AppColors.neonYellow.withValues(alpha: 0.8)
+                            : isSelected 
+                                ? AppColors.background.withValues(alpha: 0.8) 
+                                : AppColors.textMuted,
+                        fontSize: 10 * tvScale,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-            if (count != null) ...[
-              SizedBox(width: 3 * tvScale),
-              Text(
-                '($count)',
-                style: TextStyle(
-                  color: isSelected ? AppColors.background.withValues(alpha: 0.8) : AppColors.textMuted,
-                  fontSize: 10 * tvScale,
-                ),
-              ),
-            ],
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -1506,6 +1637,7 @@ class _EpisodeGridCardState extends State<_EpisodeGridCard>
   late Animation<double> _fadeAnim;
   late Animation<double> _scaleAnim;
   bool _isHovered = false;
+  bool _isFocused = false;
 
   @override
   void initState() {
@@ -1541,23 +1673,39 @@ class _EpisodeGridCardState extends State<_EpisodeGridCard>
     final isCompleted = widget.watchProgress?.completed ?? false;
     final progress = widget.watchProgress?.progress ?? 0;
 
-    return AnimatedBuilder(
-      animation: _animController,
-      builder: (context, child) {
-        return Opacity(
-          opacity: _fadeAnim.value,
-          child: Transform.scale(
-            scale: _scaleAnim.value,
-            child: child,
-          ),
-        );
+    final isActive = _isHovered || _isFocused;
+
+    return Focus(
+      onFocusChange: (hasFocus) => setState(() => _isFocused = hasFocus),
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.select ||
+              event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.space ||
+              event.logicalKey == LogicalKeyboardKey.gameButtonA) {
+            widget.onPlay();
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
       },
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: GestureDetector(
-          onTap: widget.onPlay,
-          child: AnimatedContainer(
+      child: AnimatedBuilder(
+        animation: _animController,
+        builder: (context, child) {
+          return Opacity(
+            opacity: _fadeAnim.value,
+            child: Transform.scale(
+              scale: _scaleAnim.value * (_isFocused ? 1.05 : 1.0),
+              child: child,
+            ),
+          );
+        },
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: GestureDetector(
+            onTap: widget.onPlay,
+            child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
               color: _isHovered ? AppColors.surface : AppColors.glass,
@@ -1649,7 +1797,7 @@ class _EpisodeGridCardState extends State<_EpisodeGridCard>
                           child: Text(
                             widget.episode.title ?? 'Episode ${widget.episode.number}',
                             style: TextStyle(
-                              color: _isHovered 
+                              color: isActive 
                                   ? AppColors.textPrimary 
                                   : AppColors.textSecondary,
                               fontSize: 12,
@@ -1660,22 +1808,22 @@ class _EpisodeGridCardState extends State<_EpisodeGridCard>
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        // Play button (appears on hover)
+                        // Play button (appears on hover/focus)
                         AnimatedOpacity(
-                          opacity: _isHovered ? 1 : 0.7,
+                          opacity: isActive ? 1 : 0.7,
                           duration: const Duration(milliseconds: 200),
                           child: Row(
                             children: [
                               Icon(
                                 Icons.play_circle_filled,
-                                color: _isHovered ? categoryColor : AppColors.textMuted,
+                                color: isActive ? categoryColor : AppColors.textMuted,
                                 size: 24,
                               ),
                               const SizedBox(width: 6),
                               Text(
                                 widget.selectedCategory.toUpperCase(),
                                 style: TextStyle(
-                                  color: _isHovered 
+                                  color: isActive 
                                       ? categoryColor 
                                       : AppColors.textMuted,
                                   fontSize: 10,
@@ -1723,6 +1871,7 @@ class _EpisodeGridCardState extends State<_EpisodeGridCard>
           ),
         ),
       ),
+    ),
     );
   }
 }

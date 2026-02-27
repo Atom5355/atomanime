@@ -593,7 +593,8 @@ class DownloadCacheService {
             lastBytes = downloaded;
             lastUpdate = now;
             
-            task.progress = downloaded / contentLength;
+            // Cap progress at 0.99 during download; 1.0 is set after verification
+            task.progress = (downloaded / contentLength).clamp(0.0, 0.99);
             
             String speedText = '';
             if (bytesPerSecond > 1024 * 1024) {
@@ -610,6 +611,12 @@ class DownloadCacheService {
       }
       
       await sink.close();
+      
+      // Stream completed successfully - set progress to 100%
+      task.progress = 1.0;
+      task.status = 'Caching 100%';
+      _notifyListeners(task);
+      onProgress?.call(1.0, 'Caching 100%');
       
       // Verify download
       final stat = await file.stat();
@@ -692,6 +699,12 @@ class DownloadCacheService {
     if (exitCode != 0) {
       throw Exception('Download failed with exit code $exitCode');
     }
+    
+    // Process exited successfully - ensure progress shows 100%
+    task.progress = 1.0;
+    task.status = 'Caching 100%';
+    _notifyListeners(task);
+    onProgress?.call(1.0, 'Caching 100%');
     
     // Verify download
     final file = File(outputPath);
