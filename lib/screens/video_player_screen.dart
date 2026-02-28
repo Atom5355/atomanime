@@ -501,6 +501,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _saveWatchProgress();
     
     _focusNode.dispose();
+    // On Windows, exit fullscreen when leaving video player
+    if (Platform.isWindows && _isFullscreen) {
+      windowManager.setFullScreen(false);
+    }
     // On TV, keep landscape orientation to prevent crashes
     // On mobile, reset to portrait
     if (Platform.isAndroid) {
@@ -740,14 +744,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       } else if (_isFullscreen) {
         _toggleFullscreen();
       } else {
-        Navigator.of(context).pop();
+        _exitPlayer();
       }
       return KeyEventResult.handled;
     }
     
     // Media Stop - Exit player
     if (key == LogicalKeyboardKey.mediaStop) {
-      Navigator.of(context).pop();
+      _exitPlayer();
       return KeyEventResult.handled;
     }
     
@@ -793,6 +797,19 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         }
       }
       _changeSubtitle(newIndex);
+    }
+  }
+
+  /// Exit the video player, ensuring fullscreen is exited first on Windows.
+  Future<void> _exitPlayer() async {
+    if (Platform.isWindows && _isFullscreen) {
+      setState(() => _isFullscreen = false);
+      await windowManager.setFullScreen(false);
+      // Small delay to let the window manager finish before popping
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    if (mounted) {
+      Navigator.of(context).pop();
     }
   }
 
@@ -1210,7 +1227,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => _exitPlayer(),
                   ),
                   Expanded(
                     child: Column(

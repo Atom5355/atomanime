@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/anime_provider.dart';
@@ -11,7 +12,10 @@ import 'anime_details_screen.dart';
 
 /// Full-screen search that works on PC (keyboard), Android (touch), and TV (D-Pad).
 /// - Search field auto-focuses for immediate typing
-/// - Dedicated Search button for D-Pad users (no auto-search on every character)
+/// - Debounced auto-search keeps focus so user can continue typing
+/// - Dedicated Search button for D-Pad users
+/// - Down arrow from search bar → first result in grid
+/// - Up arrow from first result row → back to search bar
 /// - Results displayed as a focusable grid with 2D D-Pad navigation
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -23,20 +27,40 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'search_field');
+  final FocusScopeNode _resultsScopeNode = FocusScopeNode(debugLabel: 'search_results');
   Timer? _searchDebounce;
+  bool _focusResultsOnBuild = false;
 
+  /// Explicit search triggered by Enter key or Search button.
+  /// Unfocuses search field and moves focus to results when ready.
   void _performSearch() {
-    if (_searchController.text.isEmpty) return;
+    final query = _searchController.text.trim();
+    if (query.isEmpty) return;
     _searchDebounce?.cancel();
-    // Unfocus the text field so D-Pad can navigate results
-    FocusScope.of(context).unfocus();
-    Provider.of<AnimeProvider>(context, listen: false)
-        .searchAnime(_searchController.text);
+    _focusResultsOnBuild = true;
+    _searchFocusNode.unfocus();
+    Provider.of<AnimeProvider>(context, listen: false).searchAnime(query);
+  }
+
+  /// Background search triggered by debounced typing.
+  /// Searches without stealing focus from the text field.
+  void _searchInBackground() {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) return;
+    Provider.of<AnimeProvider>(context, listen: false).searchAnime(query);
+  }
+
+  /// Focus the first item in the results grid via Down arrow.
+  void _focusFirstResult() {
+    // FocusableGrid handles autofocusIndex directly,
+    // so for DPAD Down we just set the flag and rebuild.
+    setState(() => _focusResultsOnBuild = true);
   }
 
   void _clearSearch() {
     _searchController.clear();
     Provider.of<AnimeProvider>(context, listen: false).clearSearch();
+    _focusResultsOnBuild = false;
     _searchFocusNode.requestFocus();
   }
 
@@ -54,6 +78,7 @@ class _SearchScreenState extends State<SearchScreen> {
     _searchDebounce?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _resultsScopeNode.dispose();
     super.dispose();
   }
 
@@ -137,27 +162,44 @@ class _SearchScreenState extends State<SearchScreen> {
             },
           ),
           SizedBox(width: 12 * tvScale),
-          // Search text field
+          // Search text field - wrapped in Focus interceptor for Down arrow navigation
           Expanded(
-            child: DpadFormField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              autofocus: true,
-              hintText: 'Search anime...',
-              prefixIcon: Icons.search,
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _performSearch(),
-              onChanged: (value) {
-                // Debounced auto-search for PC/touch (not on every character for TV)
-                _searchDebounce?.cancel();
-                if (value.isNotEmpty) {
-                  _searchDebounce = Timer(const Duration(milliseconds: 800), () {
-                    if (value.isNotEmpty && mounted) {
-                      _performSearch();
-                    }
-                  });
+            child: Focus(
+              skipTraversal: true,
+              canRequestFocus: false,
+              onKeyEvent: (node, event) {
+                if (event is! KeyDownEvent) return KeyEventResult.ignored;
+                // Down arrow from search field → focus first result
+                if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                  final provider = Provider.of<AnimeProvider>(context, listen: false);
+                  if (provider.searchResults.isNotEmpty) {
+                    _focusFirstResult();
+                    return KeyEventResult.handled;
+                  }
                 }
+                return KeyEventResult.ignored;
               },
+              child: DpadFormField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                autofocus: true,
+                hintText: 'Search anime...',
+                prefixIcon: Icons.search,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => _performSearch(),
+                onChanged: (value) {
+                  // Debounced background search - does NOT unfocus the text field
+                  // User can keep typing; results update in the background
+                  _searchDebounce?.cancel();
+                  if (value.trim().isNotEmpty) {
+                    _searchDebounce = Timer(const Duration(milliseconds: 1200), () {
+                      if (mounted) {
+                        _searchInBackground();
+                      }
+                    });
+                  }
+                },
+              ),
             ),
           ),
           SizedBox(width: 8 * tvScale),
@@ -231,25 +273,48 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildSearchResults(List<Anime> results, double tvScale, bool isTv) {
-    // Calculate grid columns based on screen width
-    final screenWidth = MediaQuery.of(context).size.width;
-    final crossAxisCount = isTv ? 5 : (screenWidth > 800 ? 4 : (screenWidth > 500 ? 3 : 2));
-    
-    return FocusableGrid(
-      itemCount: results.length,
-      crossAxisCount: crossAxisCount,
-      childAspectRatio: 0.55,
-      crossAxisSpacing: 14 * tvScale,
-      mainAxisSpacing: 14 * tvScale,
-      padding: EdgeInsets.all(16 * tvScale),
-      onItemSelect: (index) {
-        if (index < results.length) {
-          _navigateToDetails(results[index]);
-        }
-      },
-      itemBuilder: (context, index, isFocused) {
-        return _buildSearchResultCard(results[index], isFocused, tvScale);
-      },
+    // Determine if we should auto-focus first result
+    final int? autoFocusIdx = _focusResultsOnBuild ? 0 : null;
+    if (_focusResultsOnBuild) {
+      _focusResultsOnBuild = false;
+    }
+
+    // Fixed 3 columns, aspect ratio sized so ~2 rows fit on screen
+    const int crossAxisCount = 3;
+    // Calculate aspect ratio so 2 rows fill the available height
+    final availableHeight = MediaQuery.of(context).size.height
+        - MediaQuery.of(context).padding.top
+        - MediaQuery.of(context).padding.bottom
+        - (60 * tvScale)   // search bar approximate height
+        - (32 * tvScale);  // top+bottom padding
+    final availableWidth = MediaQuery.of(context).size.width - (32 * tvScale); // horizontal padding
+    final itemWidth = (availableWidth - (crossAxisCount - 1) * 14 * tvScale) / crossAxisCount;
+    final itemHeight = (availableHeight - 14 * tvScale) / 2; // 2 rows, 1 gap
+    final childAspectRatio = itemWidth / itemHeight;
+
+    return FocusScope(
+      node: _resultsScopeNode,
+      child: FocusableGrid(
+        itemCount: results.length,
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: childAspectRatio,
+        crossAxisSpacing: 14 * tvScale,
+        mainAxisSpacing: 14 * tvScale,
+        padding: EdgeInsets.all(16 * tvScale),
+        autofocusIndex: autoFocusIdx,
+        onItemSelect: (index) {
+          if (index < results.length) {
+            _navigateToDetails(results[index]);
+          }
+        },
+        onNavigateUp: () {
+          // Up arrow from first row → go back to search field
+          _searchFocusNode.requestFocus();
+        },
+        itemBuilder: (context, index, isFocused) {
+          return _buildSearchResultCard(results[index], isFocused, tvScale);
+        },
+      ),
     );
   }
 

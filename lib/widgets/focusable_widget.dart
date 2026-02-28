@@ -380,6 +380,9 @@ class FocusableGrid extends StatefulWidget {
   final EdgeInsetsGeometry? padding;
   final ScrollController? scrollController;
   final void Function(int index)? onItemSelect; // Called when Enter/Select pressed on focused item
+  final VoidCallback? onNavigateUp; // Called when Up arrow from first row (edge navigation)
+  final VoidCallback? onNavigateLeft; // Called when Left arrow from first column (edge navigation)
+  final int? autofocusIndex; // If set, auto-focus this index after build
 
   const FocusableGrid({
     super.key,
@@ -392,6 +395,9 @@ class FocusableGrid extends StatefulWidget {
     this.padding,
     this.scrollController,
     this.onItemSelect,
+    this.onNavigateUp,
+    this.onNavigateLeft,
+    this.autofocusIndex,
   });
 
   @override
@@ -401,15 +407,19 @@ class FocusableGrid extends StatefulWidget {
 class _FocusableGridState extends State<FocusableGrid> {
   int _focusedIndex = -1;
   final List<FocusNode> _focusNodes = [];
+  late ScrollController _scrollController;
+  bool _didAutofocus = false;
 
   @override
   void initState() {
     super.initState();
+    _scrollController = widget.scrollController ?? ScrollController();
     _initFocusNodes();
   }
 
   void _initFocusNodes() {
     _focusNodes.clear();
+    _didAutofocus = false;
     for (int i = 0; i < widget.itemCount; i++) {
       _focusNodes.add(FocusNode(debugLabel: 'grid_item_$i'));
     }
@@ -424,14 +434,48 @@ class _FocusableGridState extends State<FocusableGrid> {
       }
       _initFocusNodes();
     }
+    // Reset autofocus flag when autofocusIndex changes
+    if (oldWidget.autofocusIndex != widget.autofocusIndex) {
+      _didAutofocus = false;
+    }
   }
 
   @override
   void dispose() {
+    if (widget.scrollController == null) {
+      _scrollController.dispose();
+    }
     for (final node in _focusNodes) {
       node.dispose();
     }
     super.dispose();
+  }
+
+  /// Scroll the grid to ensure the focused row is visible.
+  void _scrollToIndex(int index) {
+    if (!_scrollController.hasClients) return;
+    // Estimate row height from viewport and aspect ratio
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final cols = widget.crossAxisCount;
+    final row = index ~/ cols;
+    // Approximate item height: (itemWidth * (1/aspectRatio)) + mainAxisSpacing
+    // itemWidth ~ (viewportWidth - padding - spacing) / cols, but we can estimate from viewport
+    final padV = (widget.padding as EdgeInsets?)?.vertical ?? 32.0;
+    final availableWidth = MediaQuery.of(context).size.width - ((widget.padding as EdgeInsets?)?.horizontal ?? 32.0);
+    final itemWidth = (availableWidth - (cols - 1) * widget.crossAxisSpacing) / cols;
+    final itemHeight = itemWidth / widget.childAspectRatio;
+    final rowOffset = row * (itemHeight + widget.mainAxisSpacing) + (padV / 2);
+    final maxScroll = _scrollController.position.maxScrollExtent;
+
+    // Scroll so the focused row is centered in view
+    double scrollTo = rowOffset - (viewportHeight / 2) + (itemHeight / 2);
+    scrollTo = scrollTo.clamp(0.0, maxScroll);
+
+    _scrollController.animateTo(
+      scrollTo,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event, int index) {
@@ -441,10 +485,26 @@ class _FocusableGridState extends State<FocusableGrid> {
     int newIndex = index;
 
     if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      // At the left edge (first column) - notify parent for edge navigation
+      if (index % cols == 0) {
+        if (widget.onNavigateLeft != null) {
+          widget.onNavigateLeft!();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      }
       newIndex = index - 1;
     } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
       newIndex = index + 1;
     } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      // At the top row - notify parent for edge navigation
+      if (index < cols) {
+        if (widget.onNavigateUp != null) {
+          widget.onNavigateUp!();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      }
       newIndex = index - cols;
     } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       newIndex = index + cols;
@@ -472,8 +532,21 @@ class _FocusableGridState extends State<FocusableGrid> {
 
   @override
   Widget build(BuildContext context) {
+    // Auto-focus the requested index after first build
+    if (widget.autofocusIndex != null && !_didAutofocus) {
+      _didAutofocus = true;
+      final targetIndex = widget.autofocusIndex!;
+      if (targetIndex >= 0 && targetIndex < _focusNodes.length) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && targetIndex < _focusNodes.length) {
+            _focusNodes[targetIndex].requestFocus();
+          }
+        });
+      }
+    }
+
     return GridView.builder(
-      controller: widget.scrollController,
+      controller: _scrollController,
       padding: widget.padding ?? const EdgeInsets.all(16),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: widget.crossAxisCount,
@@ -488,6 +561,7 @@ class _FocusableGridState extends State<FocusableGrid> {
           onFocusChange: (focused) {
             if (focused) {
               setState(() => _focusedIndex = index);
+              _scrollToIndex(index);
             } else {
               // Reset highlight when focus leaves this grid entirely
               WidgetsBinding.instance.addPostFrameCallback((_) {

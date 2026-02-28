@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
@@ -228,9 +227,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: AnimatedGradientBackground(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          // Back button on home screen → go to profile selection instead of exiting app
+          Navigator.of(context).pushReplacementNamed('/');
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: AnimatedGradientBackground(
         child: Stack(
           children: [
             Consumer<AnimeProvider>(
@@ -265,6 +272,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ],
         ),
+      ),
       ),
     );
   }
